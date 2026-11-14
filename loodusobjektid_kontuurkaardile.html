@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Loodusobjektid</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://unpkg.com/topojson-client@3"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 16px 12px 32px 12px;
+      background-color: #f4f4f1;
+      color: #222222;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      background-color: #ffffff;
+      border: 1px solid #cccccc;
+      padding: 18px 20px 24px 20px;
+    }
+
+    /* Päis */
+    header {
+      border-bottom: 1px solid #cccccc;
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0 0 4px 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 26px;
+      font-weight: bold;
+      color: #111111;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: #555555;
+      font-size: 14px;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 12px;
+      padding: 10px 12px;
+      background-color: #f9f9f7;
+      border: 1px solid #d5d5d5;
+      margin-bottom: 12px;
+    }
+
+    .mode-group {
+      display: inline-flex;
+    }
+
+    button, select {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 14px;
+      padding: 5px 11px;
+      border: 1px solid #999999;
+      background-color: #ffffff;
+      color: #222222;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #efefef;
+    }
+
+    button.active-mode {
+      background-color: #2b5797;
+      color: #ffffff;
+      border-color: #1e3f6e;
+      font-weight: bold;
+    }
+
+    button.primary-btn {
+      background-color: #2b5797;
+      color: #ffffff;
+      border-color: #1e3f6e;
+      font-weight: bold;
+    }
+
+    button.primary-btn:hover {
+      background-color: #214477;
+    }
+
+    select {
+      max-width: 280px;
+    }
+
+    .stats-text {
+      margin-left: auto;
+      font-size: 14px;
+      color: #222222;
+    }
+
+    .prompt-bar {
+      padding: 10px 12px;
+      border: 1px solid #cccccc;
+      background-color: #fdfdf9;
+      margin-bottom: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 46px;
+    }
+
+    .prompt-question {
+      font-size: 16px;
+    }
+
+    .prompt-question strong {
+      font-size: 18px;
+      color: #000000;
+    }
+
+    .prompt-category {
+      color: #555555;
+      font-size: 14px;
+    }
+
+    .feedback-bar {
+      padding: 10px 12px;
+      border: 1px solid #999999;
+      background-color: #f3f7fc;
+      margin-bottom: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .feedback-bar.hit {
+      background-color: #eef8f0;
+      border-color: #4c9a5e;
+    }
+
+    .feedback-bar.miss {
+      background-color: #fdf3f2;
+      border-color: #c96a62;
+    }
+
+    #map-wrapper {
+      position: relative;
+      width: 100%;
+      height: 500px;
+      background-color: #e8f1f8;
+      border: 1px solid #999999;
+      overflow: hidden;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    #map-wrapper.dragging {
+      cursor: grabbing;
+    }
+
+    #world-svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .graticule {
+      fill: none;
+      stroke: #c6d7e4;
+      stroke-width: 0.6px;
+    }
+
+    .equator {
+      fill: none;
+      stroke: #9ab5c9;
+      stroke-width: 1px;
+      stroke-dasharray: 4 3;
+    }
+
+    .land {
+      fill: #ffffff;
+      stroke: #444444;
+      stroke-width: 0.75px;
+      stroke-linejoin: round;
+    }
+
+    .country-borders {
+      fill: none;
+      stroke: #777777;
+      stroke-width: 0.45px;
+      stroke-linejoin: round;
+    }
+
+    .zoom-controls {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      gap: 4px;
+      z-index: 5;
+    }
+
+    .zoom-controls button {
+      padding: 4px 9px;
+      font-size: 13px;
+      background-color: #ffffff;
+      border: 1px solid #888888;
+    }
+
+    #map-loading {
+      position: absolute;
+      inset: 0;
+      background-color: #f4f7fa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #444444;
+      font-size: 14px;
+      z-index: 10;
+    }
+
+    .map-note {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #666666;
+    }
+
+    #summary-box {
+      border: 1px solid #999999;
+      background-color: #fafaf8;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    #summary-box h2 {
+      margin: 0 0 8px 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 20px;
+    }
+
+    .summary-stats {
+      margin: 0 0 12px 0;
+      font-size: 15px;
+    }
+
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 14px;
+      font-size: 13px;
+      background-color: #ffffff;
+    }
+
+    .summary-table th,
+    .summary-table td {
+      border: 1px solid #cccccc;
+      padding: 5px 8px;
+      text-align: left;
+    }
+
+    .summary-table th {
+      background-color: #f0f0ec;
+    }
+
+    .summary-scroll {
+      max-height: 240px;
+      overflow-y: auto;
+      margin-bottom: 12px;
+      border: 1px solid #cccccc;
+    }
+
+    .summary-scroll .summary-table {
+      margin-bottom: 0;
+      border: none;
+    }
+
+    /* Õpperežiimi nimekiri kaardi all */
+    #study-panel {
+      margin-top: 14px;
+      border-top: 1px solid #cccccc;
+      padding-top: 12px;
+    }
+
+    #study-panel h3 {
+      margin: 0 0 8px 0;
+      font-size: 15px;
+      color: #222222;
+    }
+
+    .study-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .study-item-btn {
+      font-size: 13px;
+      padding: 4px 8px;
+      border: 1px solid #bbbbbb;
+      background-color: #f9f9f7;
+    }
+
+    .study-item-btn:hover,
+    .study-item-btn.selected {
+      background-color: #2b5797;
+      color: #ffffff;
+      border-color: #1e3f6e;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 640px) {
+      .container {
+        padding: 12px;
+      }
+      #map-wrapper {
+        height: 360px;
+      }
+      .stats-text {
+        margin-left: 0;
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>Loodusobjektid kontuurkaardile</h1>
+      <p class="subtitle">Maailma geograafia harjutuskaart (18 teemat, 174 objekti)</p>
+    </header>
+
+    <div class="controls">
+      <div class="mode-group">
+        <button id="btn-mode-quiz" class="active-mode" onclick="setMode('quiz')">Mängi</button>
+        <button id="btn-mode-study" onclick="setMode('study')">Õpi</button>
+      </div>
+
+      <select id="category-select" onchange="onSettingsChange()" aria-label="Vali teema">
+        <option value="ALL">Kõik teemad (174 objekti)</option>
+      </select>
+
+      <select id="length-select" onchange="onSettingsChange()" aria-label="Küsimuste arv">
+        <option value="10" selected>10 küsimust</option>
+        <option value="20">20 küsimust</option>
+        <option value="30">30 küsimust</option>
+        <option value="ALL">Kõik valitud</option>
+      </select>
+
+      <button onclick="startNewGame()">Alusta uuesti</button>
+
+      <div id="quiz-stats" class="stats-text">
+        Küsimus: <strong id="progress-text">1 / 10</strong> | Punktid: <strong id="score-text">0</strong>
+      </div>
+    </div>
+
+    <div id="summary-box" class="hidden">
+      <h2>Voor on lõppenud!</h2>
+      <p id="summary-stats" class="summary-stats"></p>
+      <div class="summary-scroll">
+        <table class="summary-table">
+          <thead>
+            <tr>
+              <th>Objekt</th>
+              <th>Rühm</th>
+              <th>Kaugus</th>
+              <th>Punktid</th>
+            </tr>
+          </thead>
+          <tbody id="summary-tbody"></tbody>
+        </table>
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button id="btn-practice-missed" class="primary-btn hidden" onclick="practiceMissed()">
+          Harjuta Vigasi(<span id="missed-count">0</span>)
+        </button>
+        <button onclick="startNewGame()">Alusta uut vooru</button>
+      </div>
+    </div>
+
+    <div id="prompt-bar" class="prompt-bar">
+      <div id="quiz-prompt" class="prompt-question">
+        Leia kaardilt: <strong id="target-name">Vaikne ookean</strong>
+        <span id="category-label" class="prompt-category">(Ookeanid)</span>
+      </div>
+      <div id="study-prompt" class="hidden">
+        Klõpsa objektil allolevas nimekirjas või kaardil, et näha selle asukohta.
+      </div>
+    </div>
+
+    <div id="feedback-bar" class="feedback-bar hidden">
+      <div id="feedback-text"></div>
+      <button id="btn-next" class="primary-btn" onclick="nextQuestion()">Järgmine</button>
+    </div>
+
+    <div id="map-wrapper">
+      <div id="map-loading">Laadin kontuurkaarti...</div>
+      <svg id="world-svg"></svg>
+      <div class="zoom-controls">
+        <button onclick="zoomBy(1.6)" title="Suumi sisse">+</button>
+        <button onclick="zoomBy(0.625)" title="Suumi välja">−</button>
+        <button onclick="resetZoom()" title="Algvaade">Lähtesta</button>
+      </div>
+    </div>
+
+    <div id="study-panel" class="hidden">
+      <h3 id="study-list-title">Valitud teema:</h3>
+      <div id="study-list" class="study-list"></div>
+    </div>
+  </div>
+
+  <script>
+    const GEO_DATA = [
+      // 1. Ookeanid (5)
+      { name: "Vaikne ookean", category: "Ookeanid", lat: 0.0, lon: -160.0, radiusKm: 2600 },
+      { name: "Atlandi ookean", category: "Ookeanid", lat: 5.0, lon: -30.0, radiusKm: 2200 },
+      { name: "India ookean", category: "Ookeanid", lat: -18.0, lon: 78.0, radiusKm: 2100 },
+      { name: "Põhja-Jäämeri", category: "Ookeanid", lat: 84.0, lon: 0.0, radiusKm: 1800 },
+      { name: "Lõuna-Jäämeri", category: "Ookeanid", lat: -65.0, lon: 0.0, radiusKm: 2400 },
+
+      // 2. Mered (10)
+      { name: "Läänemeri", category: "Mered", lat: 57.5, lon: 19.5, radiusKm: 420 },
+      { name: "Vahemeri", category: "Mered", lat: 35.5, lon: 18.0, radiusKm: 850 },
+      { name: "Põhjameri", category: "Mered", lat: 56.0, lon: 3.5, radiusKm: 420 },
+      { name: "Must meri", category: "Mered", lat: 43.3, lon: 34.0, radiusKm: 420 },
+      { name: "Punane meri", category: "Mered", lat: 20.5, lon: 38.5, radiusKm: 550 },
+      { name: "Kariibi meri", category: "Mered", lat: 15.0, lon: -75.0, radiusKm: 750 },
+      { name: "Araabia meri", category: "Mered", lat: 15.5, lon: 64.0, radiusKm: 850 },
+      { name: "Lõuna-Hiina meri", category: "Mered", lat: 13.0, lon: 114.0, radiusKm: 850 },
+      { name: "Jaapani meri", category: "Mered", lat: 40.5, lon: 135.0, radiusKm: 480 },
+      { name: "Beringi meri", category: "Mered", lat: 58.0, lon: -175.0, radiusKm: 750 },
+
+      // 3. Lahed (7)
+      { name: "Mehhiko laht", category: "Lahed", lat: 25.0, lon: -90.0, radiusKm: 650 },
+      { name: "Pärsia laht", category: "Lahed", lat: 26.8, lon: 51.5, radiusKm: 380 },
+      { name: "Bengali laht", category: "Lahed", lat: 15.0, lon: 88.0, radiusKm: 750 },
+      { name: "Guinea laht", category: "Lahed", lat: 2.0, lon: 3.0, radiusKm: 650 },
+      { name: "Hudsoni laht", category: "Lahed", lat: 60.0, lon: -85.0, radiusKm: 550 },
+      { name: "Soome laht", category: "Lahed", lat: 59.9, lon: 26.0, radiusKm: 220 },
+      { name: "Botnia laht", category: "Lahed", lat: 63.0, lon: 20.0, radiusKm: 320 },
+
+      // 4. Väinad (9)
+      { name: "Gibraltari väin", category: "Väinad", lat: 35.97, lon: -5.5, radiusKm: 180 },
+      { name: "Bosporus", category: "Väinad", lat: 41.12, lon: 29.08, radiusKm: 160 },
+      { name: "Beringi väin", category: "Väinad", lat: 65.7, lon: -168.9, radiusKm: 220 },
+      { name: "Hormuzi väin", category: "Väinad", lat: 26.56, lon: 56.25, radiusKm: 190 },
+      { name: "Malaka väin", category: "Väinad", lat: 2.5, lon: 101.5, radiusKm: 320 },
+      { name: "La Manche", category: "Väinad", lat: 50.2, lon: -1.5, radiusKm: 260 },
+      { name: "Taani väinad", category: "Väinad", lat: 55.6, lon: 11.2, radiusKm: 200 },
+      { name: "Magalhãesi väin", category: "Väinad", lat: -53.5, lon: -70.8, radiusKm: 240 },
+      { name: "Drake’i väin", category: "Väinad", lat: -58.5, lon: -65.0, radiusKm: 420 },
+
+      // 5. Mäestikud ja mäeahelikud (12)
+      { name: "Himaalaja", category: "Mäestikud ja mäeahelikud", lat: 28.5, lon: 85.0, radiusKm: 750 },
+      { name: "Andid", category: "Mäestikud ja mäeahelikud", lat: -20.0, lon: -68.0, radiusKm: 1350 },
+      { name: "Alpid", category: "Mäestikud ja mäeahelikud", lat: 46.5, lon: 10.5, radiusKm: 380 },
+      { name: "Kaljumäestik", category: "Mäestikud ja mäeahelikud", lat: 48.0, lon: -114.0, radiusKm: 1100 },
+      { name: "Uural", category: "Mäestikud ja mäeahelikud", lat: 60.0, lon: 59.5, radiusKm: 750 },
+      { name: "Apalatšid", category: "Mäestikud ja mäeahelikud", lat: 38.0, lon: -79.5, radiusKm: 650 },
+      { name: "Püreneed", category: "Mäestikud ja mäeahelikud", lat: 42.6, lon: 0.8, radiusKm: 260 },
+      { name: "Karpaadid", category: "Mäestikud ja mäeahelikud", lat: 47.0, lon: 24.5, radiusKm: 420 },
+      { name: "Kaukasus", category: "Mäestikud ja mäeahelikud", lat: 42.5, lon: 44.5, radiusKm: 360 },
+      { name: "Skandinaavia mäestik", category: "Mäestikud ja mäeahelikud", lat: 63.5, lon: 13.0, radiusKm: 550 },
+      { name: "Atlas", category: "Mäestikud ja mäeahelikud", lat: 32.5, lon: -4.0, radiusKm: 520 },
+      { name: "Suur Veelahkmeahelik", category: "Mäestikud ja mäeahelikud", lat: -27.0, lon: 150.0, radiusKm: 900 },
+
+      // 6. Mäetipud ja vulkaanid (16)
+      { name: "Everest ehk Džomolungma", category: "Mäetipud ja vulkaanid", lat: 27.988, lon: 86.925, radiusKm: 220 },
+      { name: "Aconcagua", category: "Mäetipud ja vulkaanid", lat: -32.653, lon: -70.011, radiusKm: 220 },
+      { name: "Kilimanjaro", category: "Mäetipud ja vulkaanid", lat: -3.067, lon: 37.355, radiusKm: 220 },
+      { name: "Mont Blanc", category: "Mäetipud ja vulkaanid", lat: 45.833, lon: 6.865, radiusKm: 180 },
+      { name: "Fuji", category: "Mäetipud ja vulkaanid", lat: 35.361, lon: 138.727, radiusKm: 180 },
+      { name: "K2", category: "Mäetipud ja vulkaanid", lat: 35.881, lon: 76.513, radiusKm: 220 },
+      { name: "Denali", category: "Mäetipud ja vulkaanid", lat: 63.069, lon: -151.007, radiusKm: 240 },
+      { name: "Elbrus", category: "Mäetipud ja vulkaanid", lat: 43.355, lon: 42.439, radiusKm: 200 },
+      { name: "Kenya mägi", category: "Mäetipud ja vulkaanid", lat: -0.152, lon: 37.308, radiusKm: 220 },
+      { name: "Mauna Loa", category: "Mäetipud ja vulkaanid", lat: 19.475, lon: -155.608, radiusKm: 220 },
+      { name: "Mauna Kea", category: "Mäetipud ja vulkaanid", lat: 19.821, lon: -155.468, radiusKm: 220 },
+      { name: "Teide", category: "Mäetipud ja vulkaanid", lat: 28.272, lon: -16.642, radiusKm: 190 },
+      { name: "Etna", category: "Mäetipud ja vulkaanid", lat: 37.751, lon: 14.993, radiusKm: 170 },
+      { name: "Vesuuv", category: "Mäetipud ja vulkaanid", lat: 40.822, lon: 14.426, radiusKm: 160 },
+      { name: "Hekla", category: "Mäetipud ja vulkaanid", lat: 63.992, lon: -19.666, radiusKm: 180 },
+      { name: "Eyjafjallajökull", category: "Mäetipud ja vulkaanid", lat: 63.633, lon: -19.622, radiusKm: 180 },
+
+      // 7. Tasandikud ja madalikud (7)
+      { name: "Ida-Euroopa lauskmaa", category: "Tasandikud ja madalikud", lat: 54.0, lon: 38.0, radiusKm: 950 },
+      { name: "Lääne-Siberi lauskmaa", category: "Tasandikud ja madalikud", lat: 61.0, lon: 73.0, radiusKm: 850 },
+      { name: "Amazonase madalik", category: "Tasandikud ja madalikud", lat: -4.0, lon: -63.0, radiusKm: 950 },
+      { name: "Indo-Gangese madalik", category: "Tasandikud ja madalikud", lat: 26.5, lon: 80.0, radiusKm: 650 },
+      { name: "Suur Hiina tasandik", category: "Tasandikud ja madalikud", lat: 36.0, lon: 116.5, radiusKm: 480 },
+      { name: "Suurtasandik Põhja-Ameerikas", category: "Tasandikud ja madalikud", lat: 42.0, lon: -102.0, radiusKm: 850 },
+      { name: "La Plata madalik", category: "Tasandikud ja madalikud", lat: -30.0, lon: -60.0, radiusKm: 680 },
+
+      // 8. Kiltmaad ja kõrgustikud (5)
+      { name: "Tiibeti kiltmaa", category: "Kiltmaad ja kõrgustikud", lat: 33.0, lon: 88.0, radiusKm: 800 },
+      { name: "Brasiilia mägismaa", category: "Kiltmaad ja kõrgustikud", lat: -14.0, lon: -47.0, radiusKm: 850 },
+      { name: "Dekkani kiltmaa", category: "Kiltmaad ja kõrgustikud", lat: 17.5, lon: 77.5, radiusKm: 520 },
+      { name: "Iraani kiltmaa", category: "Kiltmaad ja kõrgustikud", lat: 32.5, lon: 55.0, radiusKm: 580 },
+      { name: "Etioopia mägismaa", category: "Kiltmaad ja kõrgustikud", lat: 9.5, lon: 39.0, radiusKm: 450 },
+
+      // 9. Jõed Euroopas (7)
+      { name: "Volga", category: "Jõed Euroopas", lat: 51.5, lon: 46.0, radiusKm: 550 },
+      { name: "Doonau", category: "Jõed Euroopas", lat: 45.5, lon: 20.5, radiusKm: 520 },
+      { name: "Rein", category: "Jõed Euroopas", lat: 50.0, lon: 7.8, radiusKm: 320 },
+      { name: "Dnepr", category: "Jõed Euroopas", lat: 49.5, lon: 32.0, radiusKm: 420 },
+      { name: "Don", category: "Jõed Euroopas", lat: 48.5, lon: 41.5, radiusKm: 380 },
+      { name: "Seine", category: "Jõed Euroopas", lat: 49.0, lon: 2.0, radiusKm: 240 },
+      { name: "Thames", category: "Jõed Euroopas", lat: 51.5, lon: -0.5, radiusKm: 200 },
+
+      // 10. Jõed Aasias (10)
+      { name: "Jangtse", category: "Jõed Aasias", lat: 30.5, lon: 112.0, radiusKm: 750 },
+      { name: "Huang He", category: "Jõed Aasias", lat: 36.5, lon: 111.0, radiusKm: 650 },
+      { name: "Ganges", category: "Jõed Aasias", lat: 25.5, lon: 84.0, radiusKm: 520 },
+      { name: "Indus", category: "Jõed Aasias", lat: 29.0, lon: 70.5, radiusKm: 550 },
+      { name: "Tigris", category: "Jõed Aasias", lat: 34.0, lon: 44.0, radiusKm: 380 },
+      { name: "Eufrat", category: "Jõed Aasias", lat: 34.5, lon: 41.0, radiusKm: 420 },
+      { name: "Mekong", category: "Jõed Aasias", lat: 16.0, lon: 105.0, radiusKm: 600 },
+      { name: "Obi", category: "Jõed Aasias", lat: 60.5, lon: 72.0, radiusKm: 700 },
+      { name: "Jenissei", category: "Jõed Aasias", lat: 61.5, lon: 90.0, radiusKm: 750 },
+      { name: "Leena", category: "Jõed Aasias", lat: 63.5, lon: 126.0, radiusKm: 750 },
+
+      // 11. Jõed Aafrikas (5)
+      { name: "Niilus", category: "Jõed Aafrikas", lat: 23.0, lon: 32.0, radiusKm: 850 },
+      { name: "Kongo", category: "Jõed Aafrikas", lat: -1.5, lon: 19.5, radiusKm: 650 },
+      { name: "Niger", category: "Jõed Aafrikas", lat: 13.5, lon: 2.0, radiusKm: 600 },
+      { name: "Sambesi", category: "Jõed Aafrikas", lat: -16.5, lon: 29.0, radiusKm: 520 },
+      { name: "Oranje", category: "Jõed Aafrikas", lat: -29.0, lon: 21.5, radiusKm: 450 },
+
+      // 12. Jõed Põhja-Ameerikas (5)
+      { name: "Mississippi ja Missouri", category: "Jõed Põhja-Ameerikas", lat: 39.0, lon: -91.5, radiusKm: 750 },
+      { name: "Saint Lawrence", category: "Jõed Põhja-Ameerikas", lat: 46.8, lon: -71.2, radiusKm: 420 },
+      { name: "Colorado", category: "Jõed Põhja-Ameerikas", lat: 35.5, lon: -113.5, radiusKm: 480 },
+      { name: "Mackenzie", category: "Jõed Põhja-Ameerikas", lat: 64.5, lon: -125.0, radiusKm: 550 },
+      { name: "Yukon", category: "Jõed Põhja-Ameerikas", lat: 64.5, lon: -152.0, radiusKm: 520 },
+
+      // 13. Jõed Lõuna-Ameerikas ja Austraalias (4)
+      { name: "Amazonas", category: "Jõed Lõuna-Ameerikas ja Austraalias", lat: -3.2, lon: -60.0, radiusKm: 850 },
+      { name: "Paraná", category: "Jõed Lõuna-Ameerikas ja Austraalias", lat: -27.5, lon: -56.5, radiusKm: 580 },
+      { name: "Murray ja Darling", category: "Jõed Lõuna-Ameerikas ja Austraalias", lat: -33.5, lon: 143.0, radiusKm: 520 },
+      { name: "Orinoco", category: "Jõed Lõuna-Ameerikas ja Austraalias", lat: 7.5, lon: -65.5, radiusKm: 450 },
+
+      // 14. Järved ja siseveekogud (12)
+      { name: "Kaspia meri", category: "Järved ja siseveekogud", lat: 41.8, lon: 50.8, radiusKm: 480 },
+      { name: "Baikal", category: "Järved ja siseveekogud", lat: 53.5, lon: 108.0, radiusKm: 320 },
+      { name: "Victoria järv", category: "Järved ja siseveekogud", lat: -1.2, lon: 33.0, radiusKm: 280 },
+      { name: "Põhja-Ameerika Suur järvistu", category: "Järved ja siseveekogud", lat: 45.5, lon: -84.5, radiusKm: 480 },
+      { name: "Tanganjika", category: "Järved ja siseveekogud", lat: -6.2, lon: 29.5, radiusKm: 320 },
+      { name: "Malawi ehk Njassa", category: "Järved ja siseveekogud", lat: -12.0, lon: 34.5, radiusKm: 280 },
+      { name: "Tšaadi järv", category: "Järved ja siseveekogud", lat: 13.2, lon: 14.2, radiusKm: 260 },
+      { name: "Titicaca", category: "Järved ja siseveekogud", lat: -15.8, lon: -69.4, radiusKm: 240 },
+      { name: "Araali meri", category: "Järved ja siseveekogud", lat: 45.0, lon: 59.5, radiusKm: 280 },
+      { name: "Surnumeri", category: "Järved ja siseveekogud", lat: 31.5, lon: 35.5, radiusKm: 180 },
+      { name: "Laadoga", category: "Järved ja siseveekogud", lat: 60.8, lon: 31.5, radiusKm: 220 },
+      { name: "Oneega", category: "Järved ja siseveekogud", lat: 61.7, lon: 35.4, radiusKm: 220 },
+
+      // 15. Kõrbed ja poolkõrbed (9)
+      { name: "Sahara", category: "Kõrbed ja poolkõrbed", lat: 23.5, lon: 12.0, radiusKm: 1350 },
+      { name: "Araabia kõrb", category: "Kõrbed ja poolkõrbed", lat: 21.5, lon: 48.0, radiusKm: 750 },
+      { name: "Gobi", category: "Kõrbed ja poolkõrbed", lat: 42.5, lon: 103.5, radiusKm: 680 },
+      { name: "Kalahari", category: "Kõrbed ja poolkõrbed", lat: -23.5, lon: 21.5, radiusKm: 520 },
+      { name: "Namib", category: "Kõrbed ja poolkõrbed", lat: -24.5, lon: 15.0, radiusKm: 420 },
+      { name: "Atacama", category: "Kõrbed ja poolkõrbed", lat: -23.5, lon: -69.2, radiusKm: 380 },
+      { name: "Taklimakan", category: "Kõrbed ja poolkõrbed", lat: 39.0, lon: 83.0, radiusKm: 450 },
+      { name: "Suur Victoria kõrb", category: "Kõrbed ja poolkõrbed", lat: -28.5, lon: 129.0, radiusKm: 480 },
+      { name: "Suur Liivakõrb", category: "Kõrbed ja poolkõrbed", lat: -20.5, lon: 125.0, radiusKm: 480 },
+
+      // 16. Saared ja saarestikud (13)
+      { name: "Gröönimaa", category: "Saared ja saarestikud", lat: 72.0, lon: -42.0, radiusKm: 950 },
+      { name: "Island", category: "Saared ja saarestikud", lat: 64.9, lon: -18.5, radiusKm: 320 },
+      { name: "Suurbritannia", category: "Saared ja saarestikud", lat: 54.0, lon: -2.5, radiusKm: 380 },
+      { name: "Madagaskar", category: "Saared ja saarestikud", lat: -19.0, lon: 46.7, radiusKm: 480 },
+      { name: "Uus-Guinea", category: "Saared ja saarestikud", lat: -5.5, lon: 141.5, radiusKm: 620 },
+      { name: "Borneo", category: "Saared ja saarestikud", lat: 0.5, lon: 114.0, radiusKm: 520 },
+      { name: "Sumatra", category: "Saared ja saarestikud", lat: -0.5, lon: 101.5, radiusKm: 520 },
+      { name: "Jaava", category: "Saared ja saarestikud", lat: -7.3, lon: 110.0, radiusKm: 380 },
+      { name: "Uus-Meremaa Põhjasaar ja Lõunasaar", category: "Saared ja saarestikud", lat: -41.5, lon: 173.0, radiusKm: 580 },
+      { name: "Hawaii saared", category: "Saared ja saarestikud", lat: 20.5, lon: -157.0, radiusKm: 350 },
+      { name: "Kanaari saared", category: "Saared ja saarestikud", lat: 28.3, lon: -15.8, radiusKm: 260 },
+      { name: "Galápagose saared", category: "Saared ja saarestikud", lat: -0.6, lon: -90.5, radiusKm: 280 },
+      { name: "Teravmäed", category: "Saared ja saarestikud", lat: 78.2, lon: 18.0, radiusKm: 320 },
+
+      // 17. Poolsaared (10)
+      { name: "Skandinaavia poolsaar", category: "Poolsaared", lat: 63.0, lon: 15.0, radiusKm: 620 },
+      { name: "Pürenee poolsaar", category: "Poolsaared", lat: 40.2, lon: -4.2, radiusKm: 420 },
+      { name: "Apenniini poolsaar", category: "Poolsaared", lat: 42.2, lon: 13.8, radiusKm: 360 },
+      { name: "Balkani poolsaar", category: "Poolsaared", lat: 42.0, lon: 22.0, radiusKm: 450 },
+      { name: "Araabia poolsaar", category: "Poolsaared", lat: 23.0, lon: 46.0, radiusKm: 850 },
+      { name: "Hindustani poolsaar", category: "Poolsaared", lat: 18.5, lon: 78.5, radiusKm: 680 },
+      { name: "Indohiina poolsaar", category: "Poolsaared", lat: 15.5, lon: 102.5, radiusKm: 580 },
+      { name: "Korea poolsaar", category: "Poolsaared", lat: 38.0, lon: 127.3, radiusKm: 340 },
+      { name: "Kamtšatka", category: "Poolsaared", lat: 56.0, lon: 160.0, radiusKm: 420 },
+      { name: "Labrador", category: "Poolsaared", lat: 54.5, lon: -66.5, radiusKm: 550 },
+
+      // 18. Joad, kanjonid ja muud tuntud ob
+      { name: "Niagara juga", category: "Joad, kanjonid ja muud tuntud objektid", lat: 43.082, lon: -79.074, radiusKm: 180 },
+      { name: "Victoria juga", category: "Joad, kanjonid ja muud tuntud objektid", lat: -17.924, lon: 25.857, radiusKm: 200 },
+      { name: "Suur kanjon", category: "Joad, kanjonid ja muud tuntud objektid", lat: 36.106, lon: -112.112, radiusKm: 240 },
+      { name: "Suur Vallrahu", category: "Joad, kanjonid ja muud tuntud objektid", lat: -18.2, lon: 147.7, radiusKm: 580 },
+      { name: "Angeli juga", category: "Joad, kanjonid ja muud tuntud objektid", lat: 5.967, lon: -62.535, radiusKm: 220 },
+      { name: "Mariaani süvik", category: "Joad, kanjonid ja muud tuntud objektid", lat: 11.35, lon: 142.2, radiusKm: 450 },
+      { name: "Ida-Aafrika riftivöönd", category: "Joad, kanjonid ja muud tuntud objektid", lat: -2.0, lon: 36.0, radiusKm: 750 }
+    ];
+
+    let state = {
+      mode: 'quiz',
+      selectedCategory: 'ALL',
+      roundLength: '10',
+      questions: [],
+      currentIndex: 0,
+      score: 0,
+      hasAnsweredCurrent: false,
+      results: [],
+      selectedStudyItem: null,
+      mapLoaded: false
+    };
+
+    let svg, gMap, gBase, gOverlay, gStudy, projection, pathGenerator, zoomBehavior;
+    let mapWidth = 920, mapHeight = 500;
+    let isPointerDown = false;
+    let pointerDownPos = { x: 0, y: 0 };
+
+    function initCategoryDropdown() {
+      const select = document.getElementById('category-select');
+      const categories = [...new Set(GEO_DATA.map(d => d.category))];
+      select.innerHTML = `<option value="ALL">Kõik teemad (${GEO_DATA.length} objekti)</option>`;
+      categories.forEach((cat, idx) => {
+        const count = GEO_DATA.filter(d => d.category === cat).length;
+        const opt = document.createElement('option');
+        opt.value = cat;
+        opt.textContent = `${idx + 1}. ${cat} (${count})`;
+        select.appendChild(opt);
+      });
+    }
+
+    async function initMap() {
+      const wrapper = document.getElementById('map-wrapper');
+      mapWidth = wrapper.clientWidth || 920;
+      mapHeight = wrapper.clientHeight || 500;
+
+      svg = d3.select('#world-svg')
+        .attr('viewBox', `0 0 ${mapWidth} ${mapHeight}`)
+        .attr('preserveAspectRatio', 'xMidYMid slice');
+
+      projection = d3.geoNaturalEarth1()
+        .scale(mapWidth / 5.5)
+        .translate([mapWidth / 2, mapHeight / 2]);
+
+      pathGenerator = d3.geoPath().projection(projection);
+
+      gMap = svg.append('g').attr('id', 'map-root');
+      gBase = gMap.append('g').attr('id', 'map-base');
+      gOverlay = gMap.append('g').attr('id', 'map-overlay');
+      gStudy = gMap.append('g').attr('id', 'map-study');
+
+      const graticule = d3.geoGraticule().step([15, 15]);
+      gBase.append('path')
+        .datum(graticule())
+        .attr('class', 'graticule')
+        .attr('d', pathGenerator);
+
+      gBase.append('path')
+        .datum({ type: 'LineString', coordinates: [[-180, 0], [0, 0], [180, 0]] })
+        .attr('class', 'equator')
+        .attr('d', pathGenerator);
+
+      zoomBehavior = d3.zoom()
+        .scaleExtent([1, 14])
+        .translateExtent([[-mapWidth * 0.2, -mapHeight * 0.2], [mapWidth * 1.2, mapHeight * 1.2]])
+        .on('zoom', (event) => {
+          gMap.attr('transform', event.transform);
+          const k = event.transform.k;
+          gBase.selectAll('.land').style('stroke-width', `${0.75 / Math.sqrt(k)}px`);
+          gBase.selectAll('.country-borders').style('stroke-width', `${0.45 / Math.sqrt(k)}px`);
+          gBase.selectAll('.graticule').style('stroke-width', `${0.6 / Math.sqrt(k)}px`);
+          updateMarkerScales(k);
+        });
+
+      svg.call(zoomBehavior);
+
+      const svgNode = svg.node();
+      svgNode.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0 && e.pointerType === 'mouse') return;
+        isPointerDown = true;
+        pointerDownPos = { x: e.clientX, y: e.clientY };
+      });
+
+      svgNode.addEventListener('pointermove', (e) => {
+        if (!isPointerDown) return;
+        if (Math.abs(e.clientX - pointerDownPos.x) > 5 || Math.abs(e.clientY - pointerDownPos.y) > 5) {
+          wrapper.classList.add('dragging');
+        }
+      });
+
+      svgNode.addEventListener('pointerup', (e) => {
+        wrapper.classList.remove('dragging');
+        if (!isPointerDown) return;
+        isPointerDown = false;
+        const dx = Math.abs(e.clientX - pointerDownPos.x);
+        const dy = Math.abs(e.clientY - pointerDownPos.y);
+        if (dx <= 6 && dy <= 6 && state.mode === 'quiz') {
+          handleMapClick(e);
+        }
+      });
+
+      try {
+        let worldData = null;
+        const urls = [
+          'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json',
+          'https://unpkg.com/world-atlas@2/countries-110m.json'
+        ];
+        for (const url of urls) {
+          try {
+            const resp = await fetch(url);
+            if (resp.ok) {
+              worldData = await resp.json();
+              break;
+            }
+          } catch (err) {}
+        }
+
+        if (worldData) {
+          const land = topojson.feature(worldData, worldData.objects.land);
+          const borders = topojson.mesh(worldData, worldData.objects.countries, (a, b) => a !== b);
+
+          gBase.append('path')
+            .datum(land)
+            .attr('class', 'land')
+            .attr('d', pathGenerator);
+
+          gBase.append('path')
+            .datum(borders)
+            .attr('class', 'country-borders')
+            .attr('d', pathGenerator);
+        } else {
+          renderFallbackContinents();
+        }
+      } catch (error) {
+        renderFallbackContinents();
+      }
+
+      document.getElementById('map-loading').classList.add('hidden');
+      state.mapLoaded = true;
+      startNewGame();
+    }
+
+    function renderFallbackContinents() {
+      const continents = {
+        type: "FeatureCollection",
+        features: [
+          { type: "Feature", geometry: { type: "Polygon", coordinates: [[[-168,66],[-140,70],[-85,72],[-60,47],[-80,25],[-97,26],[-84,9],[-115,30],[-125,49],[-168,66]]] } },
+          { type: "Feature", geometry: { type: "Polygon", coordinates: [[[-78,10],[-50,0],[-35,-8],[-40,-23],[-55,-34],[-68,-54],[-75,-45],[-71,-18],[-81,-4],[-78,10]]] } },
+          { type: "Feature", geometry: { type: "Polygon", coordinates: [[[-9,36],[-9,43],[2,49],[10,54],[28,70],[60,68],[130,71],[170,66],[140,42],[120,23],[103,2],[77,8],[60,25],[35,32],[25,36],[-9,36]]] } },
+          { type: "Feature", geometry: { type: "Polygon", coordinates: [[[-17,15],[-5,35],[32,31],[43,12],[51,11],[40,-15],[28,-33],[18,-34],[12,-6],[8,4],[-17,15]]] } },
+          { type: "Feature", geometry: { type: "Polygon", coordinates: [[[114,-22],[130,-12],[142,-11],[153,-28],[146,-38],[130,-32],[115,-34],[114,-22]]] } },
+          { type: "Feature", geometry: { type: "Polygon", coordinates: [[[-180,-72],[-90,-70],[0,-70],[90,-70],[180,-72],[180,-85],[-180,-85],[-180,-72]]] } }
+        ]
+      };
+      gBase.selectAll('.land')
+        .data(continents.features)
+        .enter()
+        .append('path')
+        .attr('class', 'land')
+        .attr('d', pathGenerator);
+    }
+
+    function updateMarkerScales(k) {
+      const inv = 1 / Math.pow(k, 0.72);
+      gOverlay.selectAll('.pin-group').attr('transform', function() {
+        const x = this.getAttribute('data-x');
+        const y = this.getAttribute('data-y');
+        return `translate(${x}, ${y}) scale(${inv})`;
+      });
+      gStudy.selectAll('.study-pin-group').attr('transform', function() {
+        const x = this.getAttribute('data-x');
+        const y = this.getAttribute('data-y');
+        return `translate(${x}, ${y}) scale(${inv})`;
+      });
+    }
+
+    function zoomBy(factor) {
+      svg.transition().duration(250).call(zoomBehavior.scaleBy, factor);
+    }
+
+    function resetZoom() {
+      svg.transition().duration(300).call(zoomBehavior.transform, d3.zoomIdentity);
+    }
+
+    function setMode(newMode) {
+      state.mode = newMode;
+      const btnQuiz = document.getElementById('btn-mode-quiz');
+      const btnStudy = document.getElementById('btn-mode-study');
+      const quizPrompt = document.getElementById('quiz-prompt');
+      const studyPrompt = document.getElementById('study-prompt');
+      const quizStats = document.getElementById('quiz-stats');
+      const lengthSelect = document.getElementById('length-select');
+      const feedbackBar = document.getElementById('feedback-bar');
+      const summaryBox = document.getElementById('summary-box');
+      const studyPanel = document.getElementById('study-panel');
+
+      if (newMode === 'quiz') {
+        btnQuiz.classList.add('active-mode');
+        btnStudy.classList.remove('active-mode');
+        quizPrompt.classList.remove('hidden');
+        studyPrompt.classList.add('hidden');
+        quizStats.classList.remove('hidden');
+        lengthSelect.classList.remove('hidden');
+        studyPanel.classList.add('hidden');
+        gStudy.selectAll('*').remove();
+        startNewGame();
+      } else {
+        btnStudy.classList.add('active-mode');
+        btnQuiz.classList.remove('active-mode');
+        quizPrompt.classList.add('hidden');
+        studyPrompt.classList.remove('hidden');
+        quizStats.classList.add('hidden');
+        lengthSelect.classList.add('hidden');
+        feedbackBar.classList.add('hidden');
+        summaryBox.classList.add('hidden');
+        document.getElementById('prompt-bar').classList.remove('hidden');
+        studyPanel.classList.remove('hidden');
+        gOverlay.selectAll('*').remove();
+        renderStudyMode();
+      }
+    }
+
+    function renderStudyMode() {
+      gStudy.selectAll('*').remove();
+      const cat = document.getElementById('category-select').value;
+      const items = cat === 'ALL' ? GEO_DATA : GEO_DATA.filter(d => d.category === cat);
+      const currentK = d3.zoomTransform(svg.node()).k;
+      const invScale = 1 / Math.pow(currentK, 0.72);
+      const showAllLabels = cat !== 'ALL';
+
+      const listEl = document.getElementById('study-list');
+      const titleEl = document.getElementById('study-list-title');
+      titleEl.textContent = cat === 'ALL'
+        ? `Kõik objektid (${items.length}):`
+        : `${cat} (${items.length}):`;
+      listEl.innerHTML = '';
+
+      items.forEach((item) => {
+        const coords = projection([item.lon, item.lat]);
+        if (!coords) return;
+
+        const isSelected = state.selectedStudyItem && state.selectedStudyItem.name === item.name;
+
+        const gPin = gStudy.append('g')
+          .attr('class', 'study-pin-group')
+          .attr('data-x', coords[0])
+          .attr('data-y', coords[1])
+          .attr('transform', `translate(${coords[0]}, ${coords[1]}) scale(${invScale})`)
+          .style('cursor', 'pointer')
+          .on('click', () => selectStudyItem(item));
+
+        gPin.append('circle')
+          .attr('r', isSelected ? 6.5 : 4.2)
+          .attr('fill', isSelected ? '#d32f2f' : '#1e7e34')
+          .attr('stroke', '#ffffff')
+          .attr('stroke-width', 1.3);
+
+        if (showAllLabels || isSelected) {
+          gPin.append('text')
+            .attr('y', -8)
+            .attr('text-anchor', 'middle')
+            .attr('fill', isSelected ? '#a61c1c' : '#111111')
+            .attr('font-size', isSelected ? '12px' : '10.5px')
+            .attr('font-weight', isSelected ? 'bold' : 'normal')
+            .attr('paint-order', 'stroke')
+            .attr('stroke', '#ffffff')
+            .attr('stroke-width', '2.8px')
+            .text(item.name);
+        }
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'study-item-btn' + (isSelected ? ' selected' : '');
+        btn.textContent = item.name;
+        btn.onclick = () => selectStudyItem(item);
+        listEl.appendChild(btn);
+      });
+    }
+
+    function selectStudyItem(item) {
+      state.selectedStudyItem = item;
+      document.getElementById('study-prompt').innerHTML =
+        `Valitud objekt: <strong>${item.name}</strong> (${item.category})`;
+      renderStudyMode();
+    }
+
+    function onSettingsChange() {
+      state.selectedStudyItem = null;
+      if (state.mode === 'study') {
+        document.getElementById('study-prompt').textContent =
+          'Õpperežiim: klõpsa objektil allolevas nimekirjas või kaardil, et näha selle asukohta.';
+        renderStudyMode();
+      } else {
+        startNewGame();
+      }
+    }
+
+    function startNewGame(customList = null) {
+      document.getElementById('summary-box').classList.add('hidden');
+      document.getElementById('feedback-bar').classList.add('hidden');
+      document.getElementById('prompt-bar').classList.remove('hidden');
+      gOverlay.selectAll('*').remove();
+
+      state.selectedCategory = document.getElementById('category-select').value;
+      state.roundLength = document.getElementById('length-select').value;
+
+      let pool = customList
+        ? [...customList]
+        : (state.selectedCategory === 'ALL'
+            ? [...GEO_DATA]
+            : GEO_DATA.filter(d => d.category === state.selectedCategory));
+
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+
+      if (!customList && state.roundLength !== 'ALL') {
+        const limit = parseInt(state.roundLength, 10);
+        pool = pool.slice(0, Math.min(limit, pool.length));
+      }
+
+      state.questions = pool;
+      state.currentIndex = 0;
+      state.score = 0;
+      state.results = [];
+      state.hasAnsweredCurrent = false;
+
+      resetZoom();
+      updateHUD();
+    }
+
+    function updateHUD() {
+      const current = state.questions[state.currentIndex];
+      if (!current) return;
+
+      document.getElementById('target-name').textContent = current.name;
+      document.getElementById('category-label').textContent = `(${current.category})`;
+      document.getElementById('progress-text').textContent = `${state.currentIndex + 1} / ${state.questions.length}`;
+      document.getElementById('score-text').textContent = state.score;
+    }
+
+    function handleMapClick(event) {
+      if (state.hasAnsweredCurrent || !state.questions[state.currentIndex]) return;
+
+      const svgNode = svg.node();
+      const pt = d3.pointer(event, svgNode);
+      const transform = d3.zoomTransform(svgNode);
+      const mapCoords = transform.invert(pt);
+      const lonLat = projection.invert(mapCoords);
+
+      if (!lonLat || isNaN(lonLat[0]) || isNaN(lonLat[1])) return;
+      const [guessLon, guessLat] = lonLat;
+      if (guessLat < -85 || guessLat > 85 || guessLon < -180 || guessLon > 180) return;
+
+      state.hasAnsweredCurrent = true;
+      const target = state.questions[state.currentIndex];
+      const distKm = Math.round(haversineKm(guessLat, guessLon, target.lat, target.lon));
+
+      let points = 0;
+      let isHit = false;
+      if (distKm <= target.radiusKm) {
+        points = 100;
+        isHit = true;
+      } else {
+        const excess = distKm - target.radiusKm;
+        const falloff = target.radiusKm * 3.0 + 900;
+        points = Math.max(0, Math.round(100 * Math.exp(-excess / (falloff * 0.45))));
+        if (points >= 70) isHit = true;
+      }
+
+      state.score += points;
+      state.results.push({
+        item: target,
+        distanceKm: distKm,
+        points,
+        isHit
+      });
+
+      document.getElementById('score-text').textContent = state.score;
+      renderGuessOnMap(guessLon, guessLat, target, isHit);
+      showFeedback(distKm, points, isHit, target);
+    }
+
+    function renderGuessOnMap(guessLon, guessLat, target, isHit) {
+      gOverlay.selectAll('*').remove();
+      const currentK = d3.zoomTransform(svg.node()).k;
+      const invScale = 1 / Math.pow(currentK, 0.72);
+
+      const guessXY = projection([guessLon, guessLat]);
+      const targetXY = projection([target.lon, target.lat]);
+
+      const geoCircle = d3.geoCircle()
+        .center([target.lon, target.lat])
+        .radius(kmToDegrees(target.radiusKm));
+
+      gOverlay.append('path')
+        .datum(geoCircle())
+        .attr('d', pathGenerator)
+        .attr('fill', isHit ? 'rgba(30, 126, 52, 0.14)' : 'rgba(200, 120, 30, 0.14)')
+        .attr('stroke', isHit ? '#1e7e34' : '#b86b14')
+        .attr('stroke-width', 1.1 / Math.sqrt(currentK))
+        .attr('stroke-dasharray', '4 3');
+
+      if (guessXY && targetXY) {
+        gOverlay.append('line')
+          .attr('x1', guessXY[0])
+          .attr('y1', guessXY[1])
+          .attr('x2', targetXY[0])
+          .attr('y2', targetXY[1])
+          .attr('stroke', '#333333')
+          .attr('stroke-width', 1.5 / Math.sqrt(currentK))
+          .attr('stroke-dasharray', '4 3');
+      }
+
+      if (guessXY) {
+        const gGuess = gOverlay.append('g')
+          .attr('class', 'pin-group')
+          .attr('data-x', guessXY[0])
+          .attr('data-y', guessXY[1])
+          .attr('transform', `translate(${guessXY[0]}, ${guessXY[1]}) scale(${invScale})`);
+
+        gGuess.append('circle')
+          .attr('r', 5.5)
+          .attr('fill', isHit ? '#1e7e34' : '#c9302c')
+          .attr('stroke', '#ffffff')
+          .attr('stroke-width', 1.5);
+
+        gGuess.append('text')
+          .attr('y', -9)
+          .attr('text-anchor', 'middle')
+          .attr('fill', isHit ? '#145523' : '#9c1f1c')
+          .attr('font-size', '11px')
+          .attr('font-weight', 'bold')
+          .attr('paint-order', 'stroke')
+          .attr('stroke', '#ffffff')
+          .attr('stroke-width', '3px')
+          .text('Sinu pakkumine');
+      }
+
+      if (targetXY) {
+        const gTarget = gOverlay.append('g')
+          .attr('class', 'pin-group')
+          .attr('data-x', targetXY[0])
+          .attr('data-y', targetXY[1])
+          .attr('transform', `translate(${targetXY[0]}, ${targetXY[1]}) scale(${invScale})`);
+
+        gTarget.append('circle')
+          .attr('r', 6)
+          .attr('fill', '#1e7e34')
+          .attr('stroke', '#ffffff')
+          .attr('stroke-width', 1.5);
+
+        gTarget.append('text')
+          .attr('y', 16)
+          .attr('text-anchor', 'middle')
+          .attr('fill', '#114b1e')
+          .attr('font-size', '12px')
+          .attr('font-weight', 'bold')
+          .attr('paint-order', 'stroke')
+          .attr('stroke', '#ffffff')
+          .attr('stroke-width', '3px')
+          .text(target.name);
+      }
+    }
+
+    function showFeedback(distKm, points, isHit, target) {
+      const bar = document.getElementById('feedback-bar');
+      const textEl = document.getElementById('feedback-text');
+      const btnNext = document.getElementById('btn-next');
+
+      bar.classList.remove('hidden', 'hit', 'miss');
+      bar.classList.add(isHit ? 'hit' : 'miss');
+
+      if (points === 100) {
+        textEl.innerHTML = `<strong>Õige! (+100 p)</strong> Sinu pakkumine tabas objekti "${target.name}" ala (${distKm} km keskpunktist).`;
+      } else if (isHit) {
+        textEl.innerHTML = `<strong>Peaaegu täpne! (+${points} p)</strong> Kaugus keskpunktist umbes ${distKm} km.`;
+      } else {
+        textEl.innerHTML = `<strong>Möödas umbes ${distKm} km. (+${points} p)</strong> Õige asukoht on märgitud rohelisega.`;
+      }
+
+      const isLast = state.currentIndex >= state.questions.length - 1;
+      btnNext.textContent = isLast ? 'Vaata kokkuvõtet' : 'Järgmine';
+    }
+
+    function nextQuestion() {
+      if (!state.hasAnsweredCurrent) return;
+
+      if (state.currentIndex < state.questions.length - 1) {
+        state.currentIndex++;
+        state.hasAnsweredCurrent = false;
+        document.getElementById('feedback-bar').classList.add('hidden');
+        gOverlay.selectAll('*').remove();
+        updateHUD();
+      } else {
+        showSummary();
+      }
+    }
+
+    function showSummary() {
+      document.getElementById('feedback-bar').classList.add('hidden');
+      document.getElementById('prompt-bar').classList.add('hidden');
+
+      const totalQ = state.questions.length;
+      const maxScore = totalQ * 100;
+      const hitsCount = state.results.filter(r => r.isHit).length;
+      const avgDist = Math.round(
+        state.results.reduce((acc, r) => acc + r.distanceKm, 0) / Math.max(1, totalQ)
+      );
+
+      document.getElementById('summary-stats').innerHTML =
+        `Tulemus: <strong>${state.score} / ${maxScore} punkti</strong> | ` +
+        `Täpseid vastuseid: <strong>${hitsCount} / ${totalQ}</strong> | ` +
+        `Keskmine kaugus: <strong>${avgDist} km</strong>`;
+
+      const tbody = document.getElementById('summary-tbody');
+      tbody.innerHTML = '';
+      state.results.forEach((res) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${res.item.name}</strong></td>
+          <td>${res.item.category}</td>
+          <td>${res.distanceKm} km</td>
+          <td>${res.points} p</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      const missed = state.results.filter(r => !r.isHit).map(r => r.item);
+      const btnMissed = document.getElementById('btn-practice-missed');
+      if (missed.length > 0) {
+        document.getElementById('missed-count').textContent = missed.length;
+        btnMissed.classList.remove('hidden');
+      } else {
+        btnMissed.classList.add('hidden');
+      }
+
+      document.getElementById('summary-box').classList.remove('hidden');
+    }
+
+    function practiceMissed() {
+      const missed = state.results.filter(r => !r.isHit).map(r => r.item);
+      if (missed.length > 0) {
+        startNewGame(missed);
+      }
+    }
+
+    function haversineKm(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const toRad = (deg) => (deg * Math.PI) / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    function kmToDegrees(km) {
+      return (km / 6371) * (180 / Math.PI);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if ((e.code === 'Space' || e.code === 'Enter') && state.mode === 'quiz' && state.hasAnsweredCurrent) {
+        if (document.getElementById('summary-box').classList.contains('hidden')) {
+          e.preventDefault();
+          nextQuestion();
+        }
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      if (!state.mapLoaded) return;
+      const wrapper = document.getElementById('map-wrapper');
+      const newW = wrapper.clientWidth;
+      const newH = wrapper.clientHeight;
+      if (newW > 0 && newH > 0) {
+        svg.attr('viewBox', `0 0 ${newW} ${newH}`);
+      }
+    });
+
+    window.onload = function () {
+      initCategoryDropdown();
+      initMap();
+    };
+  </script>
+</body>
+</html>
